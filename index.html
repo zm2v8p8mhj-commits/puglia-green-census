@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#1b7f3b" />
+  <title>Puglia Green Census</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ONBOARDING -->
+  <section id="onboarding" class="onboarding">
+    <div class="ob-card">
+      <div class="ob-logo">🌿</div>
+      <h1>Puglia Green Census</h1>
+      <p class="ob-sub">Censimento del verde urbano · Regione Puglia</p>
+      <form id="onboarding-form">
+        <label class="field">
+          <span class="field-label">Comune</span>
+          <input id="ob-comune" type="text" placeholder="es. Lecce" required />
+        </label>
+        <div class="grid2">
+          <label class="field">
+            <span class="field-label">Provincia</span>
+            <input id="ob-prov" type="text" placeholder="es. LE" maxlength="4" />
+          </label>
+          <label class="field">
+            <span class="field-label">Popolazione residente</span>
+            <input id="ob-pop" type="number" min="1" placeholder="abitanti" required />
+          </label>
+        </div>
+        <div id="ob-livello" class="ob-livello"></div>
+        <button type="submit" class="btn-primary big">Avvia censimento</button>
+      </form>
+      <p class="ob-note">≤ 15.000 ab. → Livello 2 (aree + catasto alberi) · &gt; 15.000 ab. → Livello 3 (inventario completo del verde). Dati salvati offline sul dispositivo.</p>
+    </div>
+  </section>
+
+  <!-- APP -->
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <div class="brand">🌿 <span>Green Census</span></div>
+      <div class="proj">
+        <strong id="hdr-comune"></strong>
+        <span id="hdr-livello" class="badge"></span>
+        <span id="hdr-pop" class="muted"></span>
+      </div>
+      <div class="actions">
+        <button id="btn-gps" title="Vai alla mia posizione">📍 GPS</button>
+        <button id="btn-fit" title="Inquadra tutti i dati">⊡</button>
+        <div class="export-wrap">
+          <button id="btn-export">⤓ Esporta</button>
+          <div id="export-menu" class="menu hidden">
+            <button id="exp-geojson">GeoJSON (.geojson)</button>
+            <button id="exp-csv">CSV (.csv)</button>
+            <button id="exp-shp">Shapefile (.zip)</button>
+          </div>
+        </div>
+        <button id="btn-reset" class="ghost" title="Azzera progetto">⟲</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <nav id="tabs" class="tabs"></nav>
+        <div class="list-head">
+          <span><b id="count">0</b> elementi</span>
+          <button id="btn-add" class="btn-add">+ Nuovo</button>
+        </div>
+        <div id="list" class="list"></div>
+      </aside>
+
+      <main class="map-wrap">
+        <div id="map"></div>
+      </main>
+    </div>
+
+    <!-- Pannello scheda -->
+    <div id="panel" class="panel">
+      <div class="panel-head">
+        <h2 id="panel-title"></h2>
+        <button id="panel-close">✕</button>
+      </div>
+      <div id="panel-body" class="panel-body"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>
