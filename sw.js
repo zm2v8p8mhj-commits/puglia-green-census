@@ -1,5 +1,5 @@
 /* Puglia Green Census — Service Worker per il funzionamento offline */
-const CACHE = 'pgc-v1';
+const CACHE = 'pgc-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -39,10 +39,14 @@ self.addEventListener('fetch', (e) => {
   // Tile della mappa: cache-first opportunistico (consente la mappa offline nelle aree già viste).
   const isTile = /tile\.openstreetmap|server\.arcgisonline/.test(url.href);
 
+  // Le richieste cross-origin no-cors (tile, CDN) producono risposte "opache"
+  // con status 0: vanno salvate comunque, altrimenti l'offline non funziona.
+  const cacheable = (res) => res && (res.ok || res.type === 'opaque');
+
   if (isTile) {
     e.respondWith(
       caches.open(CACHE).then((c) => c.match(req).then((hit) => {
-        const net = fetch(req).then((res) => { if (res.ok) c.put(req, res.clone()); return res; }).catch(() => hit);
+        const net = fetch(req).then((res) => { if (cacheable(res)) c.put(req, res.clone()); return res; }).catch(() => hit);
         return hit || net;
       }))
     );
@@ -52,7 +56,7 @@ self.addEventListener('fetch', (e) => {
   // App shell e librerie: cache-first con fallback rete.
   e.respondWith(
     caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-      if (res.ok && (url.origin === location.origin || /unpkg\.com/.test(url.href))) {
+      if (cacheable(res) && (url.origin === location.origin || /unpkg\.com/.test(url.href))) {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy));
       }

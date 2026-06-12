@@ -83,11 +83,13 @@
   function enterApp() {
     $('#onboarding').classList.add('hidden');
     $('#app').classList.remove('hidden');
+    MAP.invalidate();
     renderHeader();
     renderTabs();
     refreshMap();
     renderList();
-    MAP.fitToData();
+    // dopo invalidateSize, altrimenti fitBounds lavora su una mappa 0×0
+    setTimeout(() => MAP.fitToData(), 180);
   }
 
   // ------------------------------------------------------------- caricamento

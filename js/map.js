@@ -39,6 +39,14 @@
 
   function getMap() { return map; }
 
+  // Da chiamare quando il contenitore della mappa diventa visibile o cambia
+  // dimensione: Leaflet inizializzato in un div nascosto resta a 0×0 e non
+  // scarica le tile finché non si ricalcola la dimensione.
+  function invalidate() {
+    if (!map) return;
+    setTimeout(() => map.invalidateSize(), 60);
+  }
+
   // --- Geolocalizzazione continua ---------------------------------------
 
   function startLocate() {
@@ -182,7 +190,7 @@
   }
 
   global.GC_MAP = {
-    init, getMap, startDraw, cancelDraw, placeAtGPS, panToCurrent,
+    init, getMap, invalidate, startDraw, cancelDraw, placeAtGPS, panToCurrent,
     currentPosition, geodesicArea, lineLength,
     renderAree, renderAlberi, renderElementi, clearData, fitToData
   };
