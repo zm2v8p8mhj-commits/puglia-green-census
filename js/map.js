@@ -118,6 +118,19 @@
     return L.GeometryUtil.geodesicArea(latlngs);
   }
 
+  // Genera il perimetro fittizio di un viale alberato/filare: fascia di
+  // larghezza `widthM` (metri totali) attorno all'asse disegnato in campo.
+  function bufferLine(geometry, widthM) {
+    if (!geometry || geometry.type !== 'LineString') return null;
+    if (typeof turf === 'undefined') {
+      alert('Libreria di calcolo (Turf) non disponibile offline: riapri l\'app online una volta.');
+      return null;
+    }
+    const w = (isFinite(widthM) && widthM > 0) ? widthM : 10;
+    const buf = turf.buffer(turf.feature(geometry), w / 2, { units: 'meters' });
+    return buf ? buf.geometry : null;
+  }
+
   function lineLength(geometry) {
     if (!geometry || geometry.type !== 'LineString') return null;
     let tot = 0;
@@ -145,6 +158,11 @@
       lyr.bindTooltip((a.codice || '') + ' · ' + (a.nome || ''), { sticky: true });
       lyr.on('click', () => onClick && onClick(a));
       layerAree.addLayer(lyr);
+      if (a.asse) {
+        const ax = L.geoJSON(a.asse, { style: { color: '#0f5c29', weight: 2.5, dashArray: '2 6' } });
+        ax.on('click', () => onClick && onClick(a));
+        layerAree.addLayer(ax);
+      }
     });
   }
 
@@ -191,7 +209,7 @@
 
   global.GC_MAP = {
     init, getMap, invalidate, startDraw, cancelDraw, placeAtGPS, panToCurrent,
-    currentPosition, geodesicArea, lineLength,
+    currentPosition, geodesicArea, lineLength, bufferLine,
     renderAree, renderAlberi, renderElementi, clearData, fitToData
   };
 })(window);

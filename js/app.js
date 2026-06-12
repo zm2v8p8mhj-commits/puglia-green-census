@@ -183,7 +183,10 @@
   }
 
   function emptyMsg(t) { return el('div', { class: 'empty' }, esc(t)); }
-  function areaBadge(a) { return a.tipo_perimetro === 'fittizio' ? 'perimetro fittizio' : 'perimetro reale'; }
+  function areaBadge(a) {
+    if (a.asse) return 'viale/filare';
+    return a.tipo_perimetro === 'fittizio' ? 'perimetro fittizio' : 'perimetro reale';
+  }
 
   function listItem(title, sub, sub2, onClick, badge) {
     const item = el('div', { class: 'item' });
@@ -259,12 +262,23 @@
     body.appendChild(field('Tipo di perimetro', fPerim, 'Reale per parchi/giardini, fittizio per viali alberati'));
     if (fDegr) body.appendChild(field('Stato di degrado / riqualificazione', fDegr));
 
-    // Geometria
+    // Geometria: perimetro disegnato (parchi/giardini) oppure asse del
+    // viale alberato/filare, da cui si genera il perimetro fittizio come
+    // fascia di larghezza configurabile.
     const geomBox = el('div', { class: 'geom-box' });
     const geomStatus = el('div', { class: 'geom-status' });
     let geometry = area.geometry || null;
+    let asse = area.asse || null;
+    const fLargh = input('number', area.larghezza_fascia != null ? area.larghezza_fascia : 10,
+      { step: '0.5', min: '1', placeholder: 'm' });
     const updateGeomStatus = () => {
-      if (geometry) {
+      if (asse) {
+        const l = MAP.lineLength(asse);
+        const a = geometry ? MAP.geodesicArea(geometry) : null;
+        geomStatus.innerHTML = '✓ Asse filare acquisito · ' + (l ? Math.round(l) + ' m' : '') +
+          (a ? ' · fascia ~' + Math.round(a).toLocaleString('it-IT') + ' m²' : '');
+        geomStatus.className = 'geom-status ok';
+      } else if (geometry) {
         const a = MAP.geodesicArea(geometry);
         geomStatus.innerHTML = '✓ Perimetro acquisito' + (a ? ' · ~' + Math.round(a).toLocaleString('it-IT') + ' m²' : '');
         geomStatus.className = 'geom-status ok';
@@ -274,23 +288,39 @@
       }
     };
     updateGeomStatus();
-    const btnDraw = el('button', { type: 'button', class: 'btn-geom' }, '✏️ Disegna perimetro sulla mappa');
+    const btnDraw = el('button', { type: 'button', class: 'btn-geom' }, '✏️ Disegna perimetro (parco/giardino)');
     btnDraw.onclick = () => {
       closePanelSoft();
       MAP.startDraw('polygon', (g) => {
-        geometry = g;
+        geometry = g; asse = null;
         reopenArea();
       });
     };
+    const btnLine = el('button', { type: 'button', class: 'btn-geom alt' }, '🌳 Disegna asse viale alberato / filare');
+    btnLine.onclick = () => {
+      closePanelSoft();
+      MAP.startDraw('line', (g) => {
+        asse = g;
+        geometry = MAP.bufferLine(asse, parseFloat(fLargh.value));
+        reopenArea(true);
+      });
+    };
     // memorizza stato per riapertura dopo disegno
-    function reopenArea() {
+    function reopenArea(daFilare) {
       const merged = collectArea();
       merged.geometry = geometry;
+      merged.asse = asse;
+      if (daFilare) merged.tipo_perimetro = 'fittizio';
       openAreaForm(merged);
     }
     geomBox.appendChild(geomStatus);
     geomBox.appendChild(btnDraw);
-    body.appendChild(field('Perimetro (poligono)', geomBox));
+    geomBox.appendChild(btnLine);
+    body.appendChild(field('Perimetro', geomBox,
+      'Per i viali alberati disegna l\'asse del filare: il perimetro fittizio viene generato come fascia attorno all\'asse'));
+    const wLargh = field('Larghezza fascia filare', fLargh, 'm totali, usata per generare il perimetro fittizio');
+    wLargh.style.display = asse ? '' : 'none';
+    body.appendChild(wLargh);
     body.appendChild(field('Note', fNote));
 
     function collectArea() {
@@ -303,6 +333,8 @@
         stato_degrado: fDegr ? fDegr.value : (area.stato_degrado || ''),
         note: fNote.value.trim(),
         geometry: geometry,
+        asse: asse,
+        larghezza_fascia: asse ? (numOrNull(fLargh.value) || 10) : null,
         created_at: area.created_at || new Date().toISOString()
       };
     }
@@ -315,6 +347,13 @@
       if (!rec.codice) { alert('Il codice area è obbligatorio.'); return; }
       const dup = state.aree.find((a) => a.codice === rec.codice && a.id !== rec.id);
       if (dup) { alert('Codice area già esistente: ' + rec.codice); return; }
+      if (rec.asse) {
+        // rigenera la fascia con la larghezza definitiva
+        rec.geometry = MAP.bufferLine(rec.asse, rec.larghezza_fascia) || rec.geometry;
+        rec.lunghezza_m = MAP.lineLength(rec.asse);
+      } else {
+        rec.lunghezza_m = null;
+      }
       if (rec.geometry) rec.area_mq = MAP.geodesicArea(rec.geometry);
       await DB.put('aree', rec);
       await loadAll();

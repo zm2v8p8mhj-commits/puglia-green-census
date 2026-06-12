@@ -1,5 +1,5 @@
 /* Puglia Green Census — Service Worker per il funzionamento offline */
-const CACHE = 'pgc-v2';
+const CACHE = 'pgc-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -14,7 +14,8 @@ const ASSETS = [
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css',
   'https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js',
-  'https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js'
+  'https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js',
+  'https://unpkg.com/@turf/turf@7.2.0/turf.min.js'
 ];
 
 self.addEventListener('install', (e) => {

@@ -29,7 +29,25 @@
         tipo_perimetro: a.tipo_perimetro || '',
         stato_degrado: a.stato_degrado || '',
         area_mq: a.area_mq != null ? Math.round(a.area_mq) : '',
+        lungh_m: a.lunghezza_m != null ? Math.round(a.lunghezza_m) : '',
+        fascia_m: a.larghezza_fascia != null ? a.larghezza_fascia : '',
         note: a.note || ''
+      }
+    };
+  }
+
+  // Asse dei viali alberati/filari come layer lineare separato.
+  function asseFeature(a) {
+    return {
+      type: 'Feature',
+      geometry: a.asse,
+      properties: {
+        livello: 1,
+        codice: a.codice || '',
+        nome: a.nome || '',
+        tipo: 'asse viale/filare',
+        lungh_m: a.lunghezza_m != null ? Math.round(a.lunghezza_m) : '',
+        fascia_m: a.larghezza_fascia != null ? a.larghezza_fascia : ''
       }
     };
   }
@@ -87,6 +105,7 @@
   function buildCollections(data) {
     return {
       aree: featureCollection(data.aree.map(areaFeature)),
+      assi: featureCollection(data.aree.filter((a) => a.asse).map(asseFeature)),
       alberi: featureCollection(data.alberi.map(alberoFeature)),
       elementi: featureCollection(data.elementi.map(elementoFeature))
     };
@@ -100,7 +119,7 @@
       type: 'FeatureCollection',
       name: 'puglia_green_census',
       crs: c.aree.crs,
-      features: [].concat(c.aree.features, c.alberi.features, c.elementi.features)
+      features: [].concat(c.aree.features, c.assi.features, c.alberi.features, c.elementi.features)
     };
     download('puglia_green_census.geojson',
       new Blob([JSON.stringify(all, null, 2)], { type: 'application/geo+json' }));
@@ -138,6 +157,8 @@
         codice: a.codice, nome: a.nome, istat: a.istat,
         tipo_perimetro: a.tipo_perimetro, stato_degrado: a.stato_degrado || '',
         area_mq: a.area_mq != null ? Math.round(a.area_mq) : '',
+        lunghezza_m: a.lunghezza_m != null ? Math.round(a.lunghezza_m) : '',
+        larghezza_fascia_m: a.larghezza_fascia != null ? a.larghezza_fascia : '',
         lon: c[0], lat: c[1], note: a.note || ''
       };
     });
@@ -186,7 +207,7 @@
     // shp-write separa automaticamente per tipo di geometria nello stesso zip.
     const combined = {
       type: 'FeatureCollection',
-      features: [].concat(c.aree.features, c.alberi.features, c.elementi.features)
+      features: [].concat(c.aree.features, c.assi.features, c.alberi.features, c.elementi.features)
     };
     if (!combined.features.length) {
       alert('Nessuna geometria da esportare.');
