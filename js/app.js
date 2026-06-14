@@ -121,12 +121,138 @@
     $('#exp-csv').onclick = () => { closeExport(); EXP.exportCSV(state); };
     $('#exp-shp').onclick = () => { closeExport(); EXP.exportShapefile(state); };
     $('#btn-reset').onclick = resetProject;
+    $('#btn-import').onclick = () => $('#file-import').click();
+    $('#file-import').onchange = (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (f) importFile(f);
+    };
     document.addEventListener('click', (e) => {
       if (!e.target.closest('#btn-export') && !e.target.closest('#export-menu')) closeExport();
     });
     $('#panel-close').onclick = closePanel;
   }
   function closeExport() { $('#export-menu').classList.add('hidden'); }
+
+  // ------------------------------------------------------------- import
+
+  async function importFile(file) {
+    const IMP = global.GC_IMPORT;
+    let cls;
+    try {
+      const feats = await IMP.parseFile(file);
+      if (!feats.length) { alert('Nessuna geometria trovata nel file.'); return; }
+      cls = IMP.classify(feats);
+    } catch (err) {
+      console.error(err);
+      alert('Errore di lettura del file: ' + err.message);
+      return;
+    }
+
+    const lv = state.progetto.livello;
+    const skipAlberi = lv < 2 ? cls.alberi.length : 0;
+    const skipElem = lv < 3 ? cls.elementi.length : 0;
+    const nAlberi = lv >= 2 ? cls.alberi.length : 0;
+    const nElem = lv >= 3 ? cls.elementi.length : 0;
+
+    const righe = [
+      cls.aree.length + ' aree',
+      cls.assi.length ? cls.assi.length + ' assi di filari' : null,
+      (nAlberi || skipAlberi) ? nAlberi + ' alberi' + (skipAlberi ? ' (' + skipAlberi + ' ignorati: progetto Livello 2)' : '') : null,
+      (nElem || skipElem) ? nElem + ' elementi' + (skipElem ? ' (' + skipElem + ' ignorati: progetto Livello ' + lv + ')' : '') : null,
+      cls.ignorati ? cls.ignorati + ' feature senza geometria/livello ignorate' : null
+    ].filter(Boolean);
+
+    if (!confirm('Importare e aggiornare i dati?\n\n' + righe.join('\n') +
+      '\n\nI record con stesso codice vengono aggiornati, gli altri aggiunti.')) return;
+
+    // --- upsert AREE (per codice) ---
+    const byCodArea = {};
+    state.aree.forEach((a) => { if (a.codice) byCodArea[a.codice] = a; });
+    cls.aree.forEach((na) => {
+      const ex = na.codice && byCodArea[na.codice];
+      const rec = ex ? Object.assign({}, ex) : { id: DB.uid('area'), created_at: new Date().toISOString(), asse: null };
+      rec.codice = na.codice; rec.nome = na.nome; rec.istat = na.istat;
+      rec.tipo_perimetro = na.tipo_perimetro; rec.stato_degrado = na.stato_degrado;
+      rec.note = na.note; rec.geometry = na.geometry;
+      rec.area_mq = IMP.area_mq(na.geometry);
+      if (!ex && na.codice) byCodArea[na.codice] = rec;
+      cls.__areaRecs = cls.__areaRecs || []; cls.__areaRecs.push(rec);
+    });
+
+    // --- assi dei filari: attacca all'area con stesso codice ---
+    cls.assi.forEach((ax) => {
+      let target = ax.codice && byCodArea[ax.codice];
+      if (!target) {
+        // nessuna area corrispondente: crea area "filare" dalla sola linea
+        target = { id: DB.uid('area'), codice: ax.codice || ('VL-' + Math.random().toString(36).slice(2, 6)),
+          nome: '', istat: '', tipo_perimetro: 'fittizio', stato_degrado: '', note: '',
+          created_at: new Date().toISOString() };
+        byCodArea[target.codice] = target;
+        (cls.__areaRecs = cls.__areaRecs || []).push(target);
+      }
+      target.asse = ax.geometry;
+      target.tipo_perimetro = 'fittizio';
+      target.larghezza_fascia = ax.fascia || target.larghezza_fascia || 10;
+      target.lunghezza_m = IMP.lineLen(ax.geometry);
+      // se non c'è già una fascia poligonale, generala dall'asse
+      if (!target.geometry && MAP.bufferLine) {
+        target.geometry = MAP.bufferLine(ax.geometry, target.larghezza_fascia);
+        target.area_mq = target.geometry ? IMP.area_mq(target.geometry) : null;
+      }
+    });
+
+    // --- upsert ALBERI (per codice) ---
+    const albRecs = [];
+    if (lv >= 2) {
+      const byCodAlb = {};
+      state.alberi.forEach((t) => { if (t.codice) byCodAlb[t.codice] = t; });
+      cls.alberi.forEach((nt) => {
+        const ex = nt.codice && byCodAlb[nt.codice];
+        const rec = ex ? Object.assign({}, ex) : { id: DB.uid('alb'), created_at: new Date().toISOString() };
+        Object.assign(rec, {
+          codice: nt.codice, area_cod: nt.area_cod, specie: nt.specie,
+          diametro_fusto: nt.diametro_fusto, altezza: nt.altezza, diametro_chioma: nt.diametro_chioma,
+          fase_sviluppo: nt.fase_sviluppo, monumentale_albero: nt.monumentale_albero,
+          monumentale_ulivo: nt.monumentale_ulivo, note: nt.note, lat: nt.lat, lng: nt.lng
+        });
+        albRecs.push(rec);
+      });
+    }
+
+    // --- upsert ELEMENTI (per codice) ---
+    const elemRecs = [];
+    if (lv >= 3) {
+      const byCodEl = {};
+      state.elementi.forEach((x) => { if (x.codice) byCodEl[x.codice] = x; });
+      cls.elementi.forEach((nx) => {
+        const ex = nx.codice && byCodEl[nx.codice];
+        const rec = ex ? Object.assign({}, ex) : { id: DB.uid('elm'), created_at: new Date().toISOString() };
+        Object.assign(rec, {
+          codice: nx.codice, area_cod: nx.area_cod, tipo: nx.tipo,
+          metri_lineari: nx.metri_lineari, altezza: nx.altezza, larghezza: nx.larghezza,
+          tipo_siepe: nx.tipo_siepe, impianto_irriguo: nx.impianto_irriguo,
+          tipo_irriguo: nx.tipo_irriguo, note: nx.note, geometry: nx.geometry
+        });
+        elemRecs.push(rec);
+      });
+    }
+
+    // --- scrittura su DB ---
+    const areaRecs = cls.__areaRecs || [];
+    for (const r of areaRecs) await DB.put('aree', r);
+    // risolvi area_id da area_cod per alberi/elementi
+    const codToId = {};
+    (await DB.all('aree')).forEach((a) => { if (a.codice) codToId[a.codice] = a.id; });
+    for (const r of albRecs) { r.area_id = codToId[r.area_cod] || null; await DB.put('alberi', r); }
+    for (const r of elemRecs) { r.area_id = codToId[r.area_cod] || null; await DB.put('elementi', r); }
+
+    await loadAll();
+    renderList(); refreshMap();
+    setTimeout(() => MAP.fitToData(state.aree, state.alberi, state.elementi), 120);
+    alert('Import completato:\n' +
+      areaRecs.length + ' aree, ' + albRecs.length + ' alberi, ' + elemRecs.length + ' elementi salvati.');
+  }
 
   async function resetProject() {
     if (!confirm('Azzerare il progetto e tutti i dati censiti? Esporta prima i dati: l\'operazione è irreversibile.')) return;

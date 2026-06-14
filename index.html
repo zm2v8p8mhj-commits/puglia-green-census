@@ -53,6 +53,8 @@
       <div class="actions">
         <button id="btn-gps" title="Vai alla mia posizione">📍 GPS</button>
         <button id="btn-fit" title="Inquadra tutti i dati">⊡</button>
+        <button id="btn-import" title="Importa GeoJSON o Shapefile da QGIS">⤒ Importa</button>
+        <input id="file-import" type="file" accept=".geojson,.json,.zip" class="hidden" />
         <div class="export-wrap">
           <button id="btn-export">⤓ Esporta</button>
           <div id="export-menu" class="menu hidden">
@@ -95,10 +97,12 @@
   <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
   <script src="https://unpkg.com/@turf/turf@7.2.0/turf.min.js"></script>
   <script src="https://unpkg.com/proj4@2.15.0/dist/proj4.js"></script>
+  <script src="https://unpkg.com/shpjs@6.1.0/dist/shp.min.js"></script>
   <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="js/config.js"></script>
   <script src="js/db.js"></script>
   <script src="js/export.js"></script>
+  <script src="js/import.js"></script>
   <script src="js/map.js"></script>
   <script src="js/app.js"></script>
   <script>
