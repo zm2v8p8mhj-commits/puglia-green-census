@@ -120,6 +120,16 @@
     note: 'Coordinate raccolte in WGS84 (GNSS), compatibili ETRF2000 per il rilievo del verde urbano.'
   };
 
+  // CRS proiettato per l'export Shapefile destinato a QGIS: WGS84 / UTM 33N,
+  // coordinate in metri. Valido per quasi tutta la Puglia (fuso 33: 12°-18° E;
+  // il Salento più orientale, oltre 18° E, ricade nel fuso 34 / EPSG:32634).
+  const PROJ_CRS = {
+    nome: 'WGS 84 / UTM zone 33N',
+    epsg: 'EPSG:32633',
+    proj4: '+proj=utm +zone=33 +datum=WGS84 +units=m +no_defs +type=crs',
+    wkt: 'PROJCS["WGS 84 / UTM zone 33N",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",15],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","32633"]]'
+  };
+
   global.GC_CONFIG = {
     ISTAT_CLASSI,
     SPECIE,
@@ -131,6 +141,7 @@
     GEOM_ELEMENTO,
     SOGLIA_POPOLAZIONE,
     CRS,
+    PROJ_CRS,
     livelloDaPopolazione
   };
 })(window);

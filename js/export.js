@@ -3,6 +3,7 @@
   'use strict';
 
   const CRS = global.GC_CONFIG.CRS;
+  const PROJ_CRS = global.GC_CONFIG.PROJ_CRS;
 
   function download(filename, blob) {
     const url = URL.createObjectURL(blob);
@@ -191,36 +192,62 @@
     if (elemRows.length) download('elementi.csv', new Blob([toCSV(elemRows)], { type: 'text/csv' }));
   }
 
-  // --- Shapefile (via @mapbox/shp-write, output zip) ---------------------
+  // --- Riproiezione WGS84 (lon/lat) -> EPSG:32633 (UTM 33N, metri) -------
 
-  function exportShapefile(data) {
-    if (typeof shpwrite === 'undefined') {
-      alert('Libreria Shapefile non disponibile offline. Riprova quando sei online almeno una volta.');
+  let _projReady = false;
+  function ensureProj() {
+    if (_projReady) return true;
+    if (typeof proj4 === 'undefined') return false;
+    proj4.defs(PROJ_CRS.epsg, PROJ_CRS.proj4);
+    _projReady = true;
+    return true;
+  }
+
+  function projPt(c) {
+    const r = proj4('EPSG:4326', PROJ_CRS.epsg, [c[0], c[1]]);
+    // arrotondamento al mm: sufficiente e tiene puliti i file
+    return [Math.round(r[0] * 1000) / 1000, Math.round(r[1] * 1000) / 1000];
+  }
+
+  function reprojGeom(g) {
+    if (!g) return g;
+    switch (g.type) {
+      case 'Point': return { type: 'Point', coordinates: projPt(g.coordinates) };
+      case 'LineString': return { type: 'LineString', coordinates: g.coordinates.map(projPt) };
+      case 'MultiLineString':
+      case 'Polygon': return { type: g.type, coordinates: g.coordinates.map((r) => r.map(projPt)) };
+      case 'MultiPolygon': return { type: 'MultiPolygon', coordinates: g.coordinates.map((p) => p.map((r) => r.map(projPt))) };
+      default: return g;
+    }
+  }
+
+  // --- Shapefile (via @mapbox/shp-write) riproiettato in EPSG:32633 ------
+
+  async function exportShapefile(data) {
+    if (typeof shpwrite === 'undefined' || typeof JSZip === 'undefined' || typeof proj4 === 'undefined') {
+      alert('Librerie GIS non ancora disponibili offline. Apri l\'app online una volta, poi riprova.');
       return;
     }
+    ensureProj();
     const c = buildCollections(data);
-    const groups = [
-      { fc: c.aree, name: 'aree', types: { polygon: 'aree_poligoni' } },
-      { fc: c.alberi, name: 'alberi', types: { point: 'alberi_punti' } },
-      { fc: c.elementi, name: 'elementi', types: { point: 'elementi_punti', polyline: 'elementi_linee', polygon: 'elementi_poligoni' } }
-    ];
-    // shp-write separa automaticamente per tipo di geometria nello stesso zip.
-    const combined = {
-      type: 'FeatureCollection',
-      features: [].concat(c.aree.features, c.assi.features, c.alberi.features, c.elementi.features)
-    };
-    if (!combined.features.length) {
-      alert('Nessuna geometria da esportare.');
-      return;
-    }
+    const feats = [].concat(c.aree.features, c.assi.features, c.alberi.features, c.elementi.features)
+      .filter((f) => f.geometry)
+      .map((f) => ({ type: 'Feature', properties: f.properties, geometry: reprojGeom(f.geometry) }));
+    if (!feats.length) { alert('Nessuna geometria da esportare.'); return; }
+
+    const combined = { type: 'FeatureCollection', features: feats };
     const options = {
+      outputType: 'blob',
       folder: 'puglia_green_census',
-      types: {
-        point: 'punti', polygon: 'poligoni', polyline: 'linee'
-      }
+      types: { point: 'punti', polygon: 'poligoni', polyline: 'linee' }
     };
     try {
-      shpwrite.download(combined, options);
+      // shp-write scrive un .prj WGS84 fisso: lo sostituiamo con il WKT di EPSG:32633.
+      const rawZip = await shpwrite.zip(combined, options);
+      const zip = await JSZip.loadAsync(rawZip);
+      Object.keys(zip.files).filter((p) => /\.prj$/i.test(p)).forEach((p) => zip.file(p, PROJ_CRS.wkt));
+      const out = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+      download('puglia_green_census_EPSG32633.zip', out);
     } catch (e) {
       console.error(e);
       alert('Errore durante la generazione dello Shapefile: ' + e.message);
